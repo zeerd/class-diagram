@@ -1,0 +1,17 @@
+---
+Language:        Cpp
+BasedOnStyle:  Google
+AccessModifierOffset: -4
+AlignConsecutiveMacros: true
+AlignConsecutiveAssignments: Consecutive
+AlignConsecutiveDeclarations: false
+AlignOperands:   true
+BraceWrapping:
+  AfterControlStatement: false
+  AfterFunction:   true
+  BeforeElse:      true
+BreakBeforeBinaryOperators: All
+BreakBeforeBraces: Custom
+ColumnLimit:     80
+IndentWidth:     4
+...
