@@ -7,6 +7,6 @@ void JsonToFile::save(std::string output)
     json_file.write(json_str.c_str(), json_str.length());
     json_file.close();
     if (verbose) {
-        llvm::outs() << output << " generated\n";
+        std::cout << output << " generated\n";
     }
 }

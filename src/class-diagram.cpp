@@ -1,5 +1,7 @@
 #include "class-diagram.hpp"
 
+#include "class-parser.hpp"
+
 int main(int argc, const char **argv)
 {
     ClassParser gen;

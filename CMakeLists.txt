@@ -7,17 +7,18 @@ find_package(LLVM REQUIRED CONFIG)
 set(CMAKE_VERBOSE_MAKEFILE ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-set(CMAKE_CXX_STANDARD 17) 
+set(CMAKE_CXX_STANDARD 17)
 if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Debug)
 endif()
 
-file(GLOB SOURCES "*.cpp")
+file(GLOB SOURCES "src/*.cpp")
 
 add_executable(class-diagram ${SOURCES})
-target_include_directories(class-diagram PRIVATE 
-    ${CLANG_INCLUDE_DIRS} 
+target_include_directories(class-diagram PRIVATE
+    ${CLANG_INCLUDE_DIRS}
     ${PROJECT_SOURCE_DIR}/3rdparty/json/include
 )
-target_link_libraries(class-diagram PRIVATE ${LLVM_LIBS} ${CLANG_LIBS} LLVMSupport clangFrontend clangTooling clangAST)
+target_link_libraries(class-diagram PRIVATE ${LLVM_LIBS} ${CLANG_LIBS} clangFrontend clangTooling clangAST)
 target_compile_options(class-diagram PRIVATE -std=gnu++17 -frtti)
+install (TARGETS class-diagram DESTINATION bin)

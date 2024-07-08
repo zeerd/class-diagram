@@ -1,5 +1,5 @@
-#ifndef CLASS_DIAGRAM_HPP
-#define CLASS_DIAGRAM_HPP
+#ifndef CLASS_VISITOR_HPP
+#define CLASS_VISITOR_HPP
 
 #include <clang/AST/ASTConsumer.h>
 #include <clang/AST/RecursiveASTVisitor.h>
@@ -21,7 +21,6 @@
 using json = nlohmann::json;
 using namespace clang;
 using namespace clang::tooling;
-namespace fs = std::filesystem;
 
 class FindNamedClassVisitor
     : public RecursiveASTVisitor<FindNamedClassVisitor> {
@@ -31,8 +30,9 @@ private:
     void grabBaseClasses(CXXRecordDecl *Declaration, std::string name);
     void grabFields(CXXRecordDecl *Declaration, std::string name);
     void grabType(json &fld, QualType type);
+    std::string trimType(std::string name);
     void grabTemplateType(json &fld, const TemplateSpecializationType *type);
-    void storeMember(std::string name, clang::ValueDecl *var, bool flag);
+    void storeFields(std::string name, clang::ValueDecl *var, bool flag);
 
 public:
     explicit FindNamedClassVisitor(ASTContext *Context, json &classes,
@@ -46,6 +46,9 @@ public:
     }
 
     bool VisitCXXRecordDecl(CXXRecordDecl *Declaration);
+    bool VisitTypedefDecl(TypedefDecl *typedefDecl);
+    bool VisitEnumDecl(EnumDecl *enumDecl);
+    bool VisitEnumDecl(EnumDecl *enumDecl, std::string name);
 
 private:
     ASTContext *Context;
@@ -60,7 +63,7 @@ public:
                                     bool verb,
                                     llvm::cl::list<std::string> &excludeList)
         : Visitor(
-              new FindNamedClassVisitor(Context, classes, verb, excludeList))
+            new FindNamedClassVisitor(Context, classes, verb, excludeList))
     {
     }
 
@@ -114,83 +117,4 @@ private:
     llvm::cl::list<std::string> &excludeList;
 };
 
-class PUmlToSvg {
-private:
-    bool verbose;
-    std::string java;
-    std::string jar;
-
-public:
-    PUmlToSvg(bool verb, std::string java, std::string jar)
-        : verbose(verb), java(java), jar(jar)
-    {
-    }
-    void save(std::string input, std::string output);
-};
-
-class JsonToFile {
-private:
-    json &classes;
-    bool verbose;
-
-public:
-    JsonToFile(json &clz, bool verb) : classes(clz), verbose(verb) {}
-    void save(std::string output);
-};
-
-class SvgToHtml {
-private:
-    bool verbose;
-
-public:
-    SvgToHtml(bool verb) : verbose(verb) {}
-    void save(std::string input, std::string output);
-};
-
-class JsonToPUml {
-private:
-    json &classes;
-    bool verbose;
-    bool basic;
-    std::ofstream puml;
-
-private:
-    std::string getLoc(json &cls);
-    void draw_bases(json &cls);
-    void draw_fields(json &cls);
-    void draw_class(json &cls);
-
-public:
-    JsonToPUml(json &clz, bool verb, bool bsc)
-        : classes(clz), verbose(verb), basic(bsc)
-    {
-    }
-    void save(std::string output);
-};
-
-class ClassParser {
-public:
-    bool isHeader(const fs::path &path);
-    bool isExclude(std::string path_str);
-    bool detectCmplCmdJson(void);
-    void grab(std::string input, bool src, bool inc);
-    void createCmplCmdJson();
-    void makeFakeArgs(int argc, const char **argv);
-    void makeDefaultOutput();
-    void parseProject(int argc, const char **argv);
-
-    bool verbose();
-    std::string output();
-    bool basic();
-    std::string java();
-    std::string plantuml();
-    json &classes();
-
-private:
-    std::string input;
-    std::vector<std::string> cpp_files;
-    std::vector<std::string> inc_folders;
-    std::vector<const char *> fakeArgv;
-};
-
-#endif /* CLASS_DIAGRAM_HPP */
+#endif /* CLASS_VISITOR_HPP */

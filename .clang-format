@@ -6,12 +6,13 @@ AlignConsecutiveMacros: true
 AlignConsecutiveAssignments: Consecutive
 AlignConsecutiveDeclarations: false
 AlignOperands:   true
+BreakBeforeBinaryOperators: All
 BraceWrapping:
   AfterControlStatement: false
   AfterFunction:   true
   BeforeElse:      true
-BreakBeforeBinaryOperators: All
 BreakBeforeBraces: Custom
 ColumnLimit:     80
+IndentPPDirectives: AfterHash
 IndentWidth:     4
 ...

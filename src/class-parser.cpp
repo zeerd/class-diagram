@@ -1,5 +1,11 @@
-#include "class-diagram.hpp"
+#include "class-parser.hpp"
 
+#include <iostream>
+#include <nlohmann/json.hpp>
+
+#include "class-visitor.hpp"
+
+using json = nlohmann::json;
 static json jclasses;
 
 static const std::string program_description = "C++ Class Diagram Generator";
@@ -44,6 +50,12 @@ static llvm::cl::opt<std::string> argsOutput(
         "Specify output basename(use the last part of input if not given)"),
     llvm::cl::init(""), llvm::cl::cat(category));
 
+bool ClassParser::verbose() { return argsVerbose; }
+std::string ClassParser::output() { return argsOutput; }
+bool ClassParser::basic() { return argsShowBasicFields; }
+std::string ClassParser::java() { return argsJava; }
+std::string ClassParser::plantuml() { return argsPlantUML; }
+json &ClassParser::classes() { return jclasses; }
 
 bool ClassParser::isHeader(const fs::path &path)
 {
@@ -97,8 +109,8 @@ bool ClassParser::detectCmplCmdJson(void)
 
     do {
         if (argsVerbose) {
-            llvm::outs() << "Detecting " << (path / "compile_commands.json")
-                         << "\n";
+            std::cout << "Detecting " << (path / "compile_commands.json")
+                      << "\n";
         }
         found = fs::exists(path / "compile_commands.json");
         if (path.string() == "/") {
@@ -123,7 +135,7 @@ void ClassParser::grab(std::string input, bool src, bool inc)
     else {
         if (argsVerbose) {
             if (inc) {
-                llvm::outs() << "Grab files from " << input << " .\n";
+                std::cout << "Grab files from " << input << " .\n";
             }
         }
 
@@ -210,9 +222,9 @@ void ClassParser::makeFakeArgs(int argc, const char **argv)
     }
 
     if (argsVerbose) {
-        llvm::outs() << "Generated arguments:\n";
+        std::cout << "Generated arguments:\n";
         for (auto &c : fakeArgv) {
-            llvm::outs() << c << "\n";
+            std::cout << c << "\n";
         }
     }
 }
@@ -220,25 +232,30 @@ void ClassParser::makeFakeArgs(int argc, const char **argv)
 void ClassParser::makeDefaultOutput()
 {
     fs::path inputPath(fs::canonical(input));
-    llvm::outs() << "Use input name: " << inputPath << "\n";
+    std::cout << "Use input name: " << inputPath << "\n";
     argsOutput = inputPath.filename().string();
     if (argsVerbose) {
-        llvm::outs() << "Use output name: " << argsOutput << "\n";
+        std::cout << "Use output name: " << argsOutput << "\n";
     }
 }
 
 void ClassParser::parseProject(int argc, const char **argv)
 {
     makeFakeArgs(argc, argv);
-
     int fakeArgc = fakeArgv.size();
-    auto ExpectedParser = CommonOptionsParser::create(fakeArgc, fakeArgv.data(), category);
+
+#if LLVM_VERSION_MAJOR >= 13
+    auto ExpectedParser
+        = CommonOptionsParser::create(fakeArgc, fakeArgv.data(), category);
     if (!ExpectedParser) {
-        llvm::errs() << "Error: " << llvm::toString(ExpectedParser.takeError()) << "\n";
+        std::cerr << "Error: " << llvm::toString(ExpectedParser.takeError())
+                  << "\n";
         return;
     }
-    CommonOptionsParser& op = ExpectedParser.get();
-
+    CommonOptionsParser &op = ExpectedParser.get();
+#else
+    clang::tooling::CommonOptionsParser op(fakeArgc, fakeArgv.data(), category);
+#endif
     if (argsOutput == "") {
         makeDefaultOutput();
     }
@@ -249,10 +266,3 @@ void ClassParser::parseProject(int argc, const char **argv)
     ClangTool Tool(op.getCompilations(), op.getSourcePathList());
     Tool.run(actionFactory.get());
 }
-
-bool ClassParser::verbose() { return argsVerbose; }
-std::string ClassParser::output() { return argsOutput; }
-bool ClassParser::basic() { return argsShowBasicFields; }
-std::string ClassParser::java() { return argsJava; }
-std::string ClassParser::plantuml() { return argsPlantUML; }
-json &ClassParser::classes() { return jclasses; }

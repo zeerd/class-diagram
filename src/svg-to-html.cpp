@@ -121,6 +121,6 @@ void SvgToHtml::save(std::string input, std::string output)
     html_file.close();
 
     if (verbose) {
-        llvm::outs() << output << " generated\n";
+        std::cout << output << " generated\n";
     }
 }

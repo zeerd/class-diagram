@@ -11,12 +11,11 @@ void PUmlToSvg::save(std::string input, std::string output)
         << jar << " -charset UTF-8 -tsvg " << input;
     if (std::system(cmd.str().c_str()) == 0) {
         if (verbose) {
-            llvm::outs() << output << " generated\n";
+            std::cout << output << " generated\n";
         }
     }
     else {
-        llvm::errs() << "Failed to generate " << output << "\n";
+        std::cerr << "Failed to generate " << output << "\n";
         return;
     }
 }
-
