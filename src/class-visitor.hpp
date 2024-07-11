@@ -25,23 +25,32 @@ using namespace clang::tooling;
 class FindNamedClassVisitor
     : public RecursiveASTVisitor<FindNamedClassVisitor> {
 private:
-    bool isBasic(QualType &type);
+    bool isReduced(QualType &type);
+    bool isInner(const RecordType *recordType);
+    std::string getAnonymousType(const RecordType *recordType);
+
     std::string getClassName(CXXRecordDecl *Declaration);
     void grabBaseClasses(CXXRecordDecl *Declaration, std::string name);
     void grabFields(CXXRecordDecl *Declaration, std::string name);
-    void grabType(json &fld, QualType type);
-    std::string trimType(std::string name);
-    void grabTemplateType(json &fld, const TemplateSpecializationType *type);
     void storeFields(std::string name, clang::ValueDecl *var, bool flag);
+
+    bool isStdTemplate(QualType type);
+    bool isStdTemplate(const TemplateSpecializationType *specializedType);
+    std::string trimType(std::string name);
+    void grabType(json &fld, QualType type);
+    void grabFinalType(json &fld, QualType type);
+    void grabTemplateType(json &fld, const TemplateSpecializationType *type);
 
 public:
     explicit FindNamedClassVisitor(ASTContext *Context, json &classes,
                                    bool verb,
-                                   llvm::cl::list<std::string> &excludeList)
+                                   llvm::cl::list<std::string> &excludeList,
+                                   llvm::cl::list<std::string> &excludeNsList)
         : Context(Context),
           classes(classes),
           verbose(verb),
-          excludeList(excludeList)
+          excludeList(excludeList),
+          excludeNsList(excludeNsList)
     {
     }
 
@@ -55,15 +64,17 @@ private:
     json &classes;
     bool verbose;
     llvm::cl::list<std::string> &excludeList;
+    llvm::cl::list<std::string> &excludeNsList;
 };
 
 class FindNamedClassConsumer : public clang::ASTConsumer {
 public:
     explicit FindNamedClassConsumer(ASTContext *Context, json &classes,
                                     bool verb,
-                                    llvm::cl::list<std::string> &excludeList)
-        : Visitor(
-            new FindNamedClassVisitor(Context, classes, verb, excludeList))
+                                    llvm::cl::list<std::string> &excludeList,
+                                    llvm::cl::list<std::string> &excludeNsList)
+        : Visitor(new FindNamedClassVisitor(Context, classes, verb, excludeList,
+                                            excludeNsList))
     {
     }
 
@@ -79,42 +90,53 @@ private:
 class FindNamedClassAction : public clang::ASTFrontendAction {
 public:
     FindNamedClassAction(json &classes, bool verb,
-                         llvm::cl::list<std::string> &excludeList)
-        : classes(classes), verbose(verb), excludeList(excludeList)
+                         llvm::cl::list<std::string> &excludeList,
+                         llvm::cl::list<std::string> &excludeNsList)
+        : classes(classes),
+          verbose(verb),
+          excludeList(excludeList),
+          excludeNsList(excludeNsList)
     {
     }
     virtual std::unique_ptr<clang::ASTConsumer> CreateASTConsumer(
         clang::CompilerInstance &Compiler, llvm::StringRef InFile)
     {
-        return std::unique_ptr<clang::ASTConsumer>(new FindNamedClassConsumer(
-            &Compiler.getASTContext(), classes, verbose, excludeList));
+        return std::unique_ptr<clang::ASTConsumer>(
+            new FindNamedClassConsumer(&Compiler.getASTContext(), classes,
+                                       verbose, excludeList, excludeNsList));
     }
 
 private:
     json &classes;
     bool verbose;
     llvm::cl::list<std::string> &excludeList;
+    llvm::cl::list<std::string> &excludeNsList;
 };
 
 class FindNamedClassActionFactory
     : public clang::tooling::FrontendActionFactory {
 public:
     FindNamedClassActionFactory(json &classes, bool verb,
-                                llvm::cl::list<std::string> &excludeList)
-        : classes(classes), verbose(verb), excludeList(excludeList)
+                                llvm::cl::list<std::string> &excludeList,
+                                llvm::cl::list<std::string> &excludeNsList)
+        : classes(classes),
+          verbose(verb),
+          excludeList(excludeList),
+          excludeNsList(excludeNsList)
     {
     }
 
     virtual std::unique_ptr<FrontendAction> create() override
     {
-        return std::make_unique<FindNamedClassAction>(classes, verbose,
-                                                      excludeList);
+        return std::make_unique<FindNamedClassAction>(
+            classes, verbose, excludeList, excludeNsList);
     }
 
 private:
     json &classes;
     bool verbose;
     llvm::cl::list<std::string> &excludeList;
+    llvm::cl::list<std::string> &excludeNsList;
 };
 
 #endif /* CLASS_VISITOR_HPP */

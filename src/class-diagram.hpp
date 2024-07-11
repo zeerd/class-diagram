@@ -16,10 +16,15 @@ private:
     bool verbose;
     std::string java;
     std::string jar;
+    std::string theme;
+
+private:
+    std::string replaceHomeDirectory(std::string path);
+    std::string makeCmd(std::string input);
 
 public:
-    PUmlToSvg(bool verb, std::string java, std::string jar)
-        : verbose(verb), java(java), jar(jar)
+    PUmlToSvg(bool verb, std::string java, std::string jar, std::string theme)
+        : verbose(verb), java(java), jar(jar), theme(theme)
     {
     }
     void save(std::string input, std::string output);
@@ -49,17 +54,20 @@ private:
     json &classes;
     bool verbose;
     bool basic;
-    std::ofstream puml;
+    bool hide;
+    std::ofstream uml;
 
 private:
     std::string getLoc(json &cls);
-    void draw_bases(json &cls);
-    void draw_fields(json &cls);
-    void draw_class(json &cls);
+    std::string getLastName(std::string clz);
+    void drawBases(json &cls);
+    void drawFields(json &cls);
+    void drawClass(json &cls);
+    void drawNested(json &cls);
 
 public:
-    JsonToPUml(json &clz, bool verb, bool bsc)
-        : classes(clz), verbose(verb), basic(bsc)
+    JsonToPUml(json &clz, bool verb, bool bsc, bool hide)
+        : classes(clz), verbose(verb), basic(bsc), hide(hide)
     {
     }
     void save(std::string output);

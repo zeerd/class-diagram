@@ -1,3 +1,5 @@
+#include <functional>
+
 typedef enum { A, B, C } AEnum;
 
 typedef struct {

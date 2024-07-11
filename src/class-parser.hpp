@@ -10,7 +10,7 @@ namespace fs = std::filesystem;
 using json   = nlohmann::json;
 
 class ClassParser {
-public:
+private:
     bool isHeader(const fs::path &path);
     bool isExclude(std::string path_str);
     bool detectCmplCmdJson(void);
@@ -18,17 +18,21 @@ public:
     void createCmplCmdJson();
     void makeFakeArgs(int argc, const char **argv);
     void makeDefaultOutput();
+    void removeCommonPrefix();
+
+public:
     void parseProject(int argc, const char **argv);
 
     bool verbose();
     std::string output();
-    bool basic();
+    bool all();
+    bool hide();
     std::string java();
-    std::string plantuml();
+    std::string plantUML();
+    std::string theme();
     json &classes();
 
 private:
-    std::string input;
     std::vector<std::string> cpp_files;
     std::vector<std::string> inc_folders;
     std::vector<const char *> fakeArgv;
