@@ -6,6 +6,7 @@ AlignConsecutiveMacros: true
 AlignConsecutiveAssignments: Consecutive
 AlignConsecutiveDeclarations: false
 AlignOperands:   true
+AllowShortFunctionsOnASingleLine: Empty
 BreakBeforeBinaryOperators: All
 BraceWrapping:
   AfterControlStatement: false

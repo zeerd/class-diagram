@@ -3,34 +3,35 @@
 
 #include <filesystem>
 #include <nlohmann/json.hpp>
-#include <string>
-#include <vector>
 
 namespace fs = std::filesystem;
 using json   = nlohmann::json;
 
 class ClassParser {
 private:
-    bool isHeader(const fs::path &path);
-    bool isExclude(std::string path_str);
-    bool detectCmplCmdJson(void);
-    void grab(std::string input, bool src, bool inc);
+    static bool isHeader(const fs::path &path);
+    static bool isExclude(std::string path_str);
+    static bool detectCmplCmdJson(void);
+    void grab(std::string in, bool src, bool inc);
     void createCmplCmdJson();
     void makeFakeArgs(int argc, const char **argv);
-    void makeDefaultOutput();
-    void removeCommonPrefix();
+    static void makeDefaultOutput();
+    static void removeCommonPrefix();
 
 public:
     void parseProject(int argc, const char **argv);
 
-    bool verbose();
-    std::string output();
-    bool all();
-    bool hide();
-    std::string java();
-    std::string plantUML();
-    std::string theme();
-    json &classes();
+    static bool verbose();
+    static std::string output();
+    static bool all();
+    static bool hide();
+    static bool reversal();
+    static std::string java();
+    static std::string plantUML();
+    static std::string theme();
+    static json &classes();
+    static std::vector<std::string> reduceList();
+    static std::vector<std::string> reduceNsList();
 
 private:
     std::vector<std::string> cpp_files;

@@ -1,22 +1,13 @@
 #ifndef CLASS_VISITOR_HPP
 #define CLASS_VISITOR_HPP
 
-#include <clang/AST/ASTConsumer.h>
 #include <clang/AST/RecursiveASTVisitor.h>
 #include <clang/Frontend/CompilerInstance.h>
-#include <clang/Frontend/TextDiagnosticPrinter.h>
 #include <clang/Tooling/CommonOptionsParser.h>
 #include <clang/Tooling/Tooling.h>
-#include <llvm/Support/CommandLine.h>
 
-#include <algorithm>
-#include <cstdlib>
-#include <filesystem>
 #include <fstream>
 #include <nlohmann/json.hpp>
-#include <sstream>
-#include <string>
-#include <vector>
 
 using json = nlohmann::json;
 using namespace clang;
@@ -25,56 +16,62 @@ using namespace clang::tooling;
 class FindNamedClassVisitor
     : public RecursiveASTVisitor<FindNamedClassVisitor> {
 private:
-    bool isReduced(QualType &type);
+    void newClass(std::string name);
+    std::string visibility(clang::ValueDecl *var);
+
+    void configReduced(json &obj, QualType &type, bool deep = false);
+    void configClassReduced(json &obj);
+    std::pair<bool, std::string> checkReduce(QualType &type, bool deep = false);
+    bool isNamespaceReduced(QualType &type, std::string &reason);
+    bool isNamespaceReduced(std::string name, std::string &reason);
     bool isInner(const RecordType *recordType);
+    bool isStdTemplate(const TemplateSpecializationType *type);
+    bool isExcludedType(QualType &type, std::string &reason);
+    bool isBuiltinArrayType(QualType &type);
+    bool isBuiltinPointerType(QualType &type);
+    bool isFunctionType(QualType &type);
+    bool isTemplateParmType(QualType type);
     std::string getAnonymousType(const RecordType *recordType);
 
-    std::string getClassName(CXXRecordDecl *Declaration);
-    void grabBaseClasses(CXXRecordDecl *Declaration, std::string name);
-    void grabFields(CXXRecordDecl *Declaration, std::string name);
-    void storeFields(std::string name, clang::ValueDecl *var, bool flag);
+    bool isExcluded(std::string loc, std::string &reason);
+    std::string trimType(const std::string &name);
 
-    bool isStdTemplate(QualType type);
-    bool isStdTemplate(const TemplateSpecializationType *specializedType);
-    std::string trimType(std::string name);
+    std::string getNamespace(const Decl *declaration);
+    void grabBaseClasses(CXXRecordDecl *declaration, std::string clz);
+
+    void grabFields(CXXRecordDecl *declaration, const std::string &name);
     void grabType(json &fld, QualType type);
     void grabFinalType(json &fld, QualType type);
+    void storeFields(std::string name, clang::ValueDecl *var, bool flag);
+
+    void grabTemplates(CXXRecordDecl *declaration, const std::string &name);
     void grabTemplateType(json &fld, const TemplateSpecializationType *type);
+    void grabTemplateFields(json &fld, const TemplateSpecializationType *type);
+    const TemplateSpecializationType *grabDeepTemplateType(
+        const TemplateSpecializationType *type);
+
+    bool VisitEnumDecl(EnumDecl *enumDecl, const std::string &location,
+                       const std::string &ns, const std::string &name);
 
 public:
-    explicit FindNamedClassVisitor(ASTContext *Context, json &classes,
-                                   bool verb,
-                                   llvm::cl::list<std::string> &excludeList,
-                                   llvm::cl::list<std::string> &excludeNsList)
-        : Context(Context),
-          classes(classes),
-          verbose(verb),
-          excludeList(excludeList),
-          excludeNsList(excludeNsList)
-    {
-    }
+    explicit FindNamedClassVisitor(ASTContext *Context);
 
-    bool VisitCXXRecordDecl(CXXRecordDecl *Declaration);
+    bool VisitCXXRecordDecl(CXXRecordDecl *declaration);
     bool VisitTypedefDecl(TypedefDecl *typedefDecl);
     bool VisitEnumDecl(EnumDecl *enumDecl);
-    bool VisitEnumDecl(EnumDecl *enumDecl, std::string name);
 
 private:
     ASTContext *Context;
     json &classes;
     bool verbose;
-    llvm::cl::list<std::string> &excludeList;
-    llvm::cl::list<std::string> &excludeNsList;
+    std::vector<std::string> reduceList;
+    std::vector<std::string> reduceNsList;
 };
 
 class FindNamedClassConsumer : public clang::ASTConsumer {
 public:
-    explicit FindNamedClassConsumer(ASTContext *Context, json &classes,
-                                    bool verb,
-                                    llvm::cl::list<std::string> &excludeList,
-                                    llvm::cl::list<std::string> &excludeNsList)
-        : Visitor(new FindNamedClassVisitor(Context, classes, verb, excludeList,
-                                            excludeNsList))
+    explicit FindNamedClassConsumer(ASTContext *Context)
+        : Visitor(new FindNamedClassVisitor(Context))
     {
     }
 
@@ -89,54 +86,24 @@ private:
 
 class FindNamedClassAction : public clang::ASTFrontendAction {
 public:
-    FindNamedClassAction(json &classes, bool verb,
-                         llvm::cl::list<std::string> &excludeList,
-                         llvm::cl::list<std::string> &excludeNsList)
-        : classes(classes),
-          verbose(verb),
-          excludeList(excludeList),
-          excludeNsList(excludeNsList)
-    {
-    }
+    FindNamedClassAction() {}
     virtual std::unique_ptr<clang::ASTConsumer> CreateASTConsumer(
         clang::CompilerInstance &Compiler, llvm::StringRef InFile)
     {
         return std::unique_ptr<clang::ASTConsumer>(
-            new FindNamedClassConsumer(&Compiler.getASTContext(), classes,
-                                       verbose, excludeList, excludeNsList));
+            new FindNamedClassConsumer(&Compiler.getASTContext()));
     }
-
-private:
-    json &classes;
-    bool verbose;
-    llvm::cl::list<std::string> &excludeList;
-    llvm::cl::list<std::string> &excludeNsList;
 };
 
 class FindNamedClassActionFactory
     : public clang::tooling::FrontendActionFactory {
 public:
-    FindNamedClassActionFactory(json &classes, bool verb,
-                                llvm::cl::list<std::string> &excludeList,
-                                llvm::cl::list<std::string> &excludeNsList)
-        : classes(classes),
-          verbose(verb),
-          excludeList(excludeList),
-          excludeNsList(excludeNsList)
-    {
-    }
+    FindNamedClassActionFactory() {}
 
     virtual std::unique_ptr<FrontendAction> create() override
     {
-        return std::make_unique<FindNamedClassAction>(
-            classes, verbose, excludeList, excludeNsList);
+        return std::make_unique<FindNamedClassAction>();
     }
-
-private:
-    json &classes;
-    bool verbose;
-    llvm::cl::list<std::string> &excludeList;
-    llvm::cl::list<std::string> &excludeNsList;
 };
 
 #endif /* CLASS_VISITOR_HPP */

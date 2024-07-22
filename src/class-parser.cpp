@@ -1,7 +1,6 @@
 #include "class-parser.hpp"
 
 #include <iostream>
-#include <nlohmann/json.hpp>
 
 #include "class-visitor.hpp"
 
@@ -16,14 +15,17 @@ static llvm::cl::opt<bool> argsModVersion(
     "mod-version", llvm::cl::desc("Show the version of this"),
     llvm::cl::init(false), llvm::cl::cat(category));
 
+static llvm::cl::list<std::string> argsReduceList(
+    "reduce",
+    llvm::cl::desc("Exclude location for the output(could use several times)"),
+    llvm::cl::cat(category));
 static llvm::cl::list<std::string> argsExcludeList(
     "exclude",
-    llvm::cl::desc("Exclude location from the output(could use several times)"),
+    llvm::cl::desc("Exclude location for the input(could use several times)"),
     llvm::cl::cat(category));
-static llvm::cl::list<std::string> argsExcludeNsList(
-    "exclude-ns",
-    llvm::cl::desc(
-        "Exclude namespace from the output(could use several times)"),
+static llvm::cl::list<std::string> argsReduceNsList(
+    "reduce-ns",
+    llvm::cl::desc("Exclude namespace for the output(could use several times)"),
     llvm::cl::cat(category));
 static llvm::cl::list<std::string> argsIncludeList(
     "include",
@@ -51,6 +53,9 @@ static llvm::cl::opt<bool> argsVerbose(
 static llvm::cl::opt<bool> argsUnlinked(
     "unlinked", llvm::cl::desc("Show unlinked classes(false as default)"),
     llvm::cl::init(false), llvm::cl::cat(category));
+static llvm::cl::opt<bool> argsReversal(
+    "reversal", llvm::cl::desc("Rotate 90 degrees(false as default)"),
+    llvm::cl::init(false), llvm::cl::cat(category));
 
 static llvm::cl::list<std::string> argsInput(
     "input", llvm::cl::desc("input a folder of a project or a single file"),
@@ -61,14 +66,68 @@ static llvm::cl::opt<std::string> argsOutput(
         "Specify output basename(use the last part of input if not given)"),
     llvm::cl::init(""), llvm::cl::cat(category));
 
-bool ClassParser::verbose() { return argsVerbose; }
-std::string ClassParser::output() { return argsOutput; }
-bool ClassParser::all() { return argsShowAll; }
-bool ClassParser::hide() { return !argsUnlinked; }
-std::string ClassParser::java() { return argsJava; }
-std::string ClassParser::plantUML() { return argsPlantUML; }
-std::string ClassParser::theme() { return argsTheme; }
-json &ClassParser::classes() { return jClasses; }
+bool ClassParser::verbose()
+{
+    return argsVerbose;
+}
+
+std::string ClassParser::output()
+{
+    return argsOutput;
+}
+
+bool ClassParser::all()
+{
+    return argsShowAll;
+}
+
+bool ClassParser::hide()
+{
+    return !argsUnlinked;
+}
+
+bool ClassParser::reversal()
+{
+    return argsReversal;
+}
+
+std::string ClassParser::java()
+{
+    return argsJava;
+}
+
+std::string ClassParser::plantUML()
+{
+    return argsPlantUML;
+}
+
+std::string ClassParser::theme()
+{
+    return argsTheme;
+}
+
+json &ClassParser::classes()
+{
+    return jClasses;
+}
+
+std::vector<std::string> ClassParser::reduceList()
+{
+    std::vector<std::string> stdVector;
+    stdVector.reserve(argsReduceList.size());
+    std::copy(argsReduceList.begin(), argsReduceList.end(),
+              std::back_inserter(stdVector));
+    return stdVector;
+}
+
+std::vector<std::string> ClassParser::reduceNsList()
+{
+    std::vector<std::string> stdVector;
+    stdVector.reserve(argsReduceNsList.size());
+    std::copy(argsReduceNsList.begin(), argsReduceNsList.end(),
+              std::back_inserter(stdVector));
+    return stdVector;
+}
 
 bool ClassParser::isHeader(const fs::path &path)
 {
@@ -109,14 +168,14 @@ bool ClassParser::isExclude(std::string path_str)
     }
 
     return false;
-};
+}
 
 bool ClassParser::detectCmplCmdJson(void)
 {
     bool found = false;
 
     std::string in = argsInput.front();
-    fs::path path  = fs::absolute(in);
+    fs::path path  = fs::canonical(in);
     if (fs::is_regular_file(path)) {
         path = path.parent_path();
     }
@@ -132,6 +191,10 @@ bool ClassParser::detectCmplCmdJson(void)
         }
         path = path.parent_path();
     } while (!found);
+
+    if (argsVerbose) {
+        std::cout << "\n";
+    }
     return found;
 }
 
@@ -149,21 +212,26 @@ void ClassParser::grab(std::string in, bool src, bool inc)
     else {
         if (argsVerbose) {
             if (inc) {
-                std::cout << "Grab files from " << in << " .\n";
+                std::cout << "Grab header files from '" << in << "'.\n";
             }
         }
 
+        if (inc) {
+            inc_folders.push_back(fs::canonical(in).string());
+        }
+
         for (const auto &entry :
-             fs::recursive_directory_iterator(fs::absolute(in))) {
+             fs::recursive_directory_iterator(fs::canonical(in))) {
             if (isExclude(entry.path().string())) {
                 continue;
             }
             if (entry.is_directory() && inc) {
-                for (const auto &file : fs::directory_iterator(entry)) {
-                    if (isHeader(file.path())) {
-                        inc_folders.push_back(entry.path().string());
-                        break;
-                    }
+                bool hasHeader = std::any_of(
+                    fs::directory_iterator(entry), fs::directory_iterator{},
+                    [this](const auto &file) { return isHeader(file.path()); });
+
+                if (hasHeader) {
+                    inc_folders.push_back(entry.path().string());
                 }
             }
             if (entry.is_regular_file() && src) {
@@ -183,6 +251,10 @@ void ClassParser::createCmplCmdJson()
 
     std::ofstream file(new_folder / "compile_commands.json");
     if (file.is_open()) {
+        if (argsVerbose) {
+            std::cout << "Create fake compile_commands.json in "
+                      << new_folder.string() << "\n\n";
+        }
         for (auto in : argsInput) {
             grab(in, false, true);
         }
@@ -199,6 +271,7 @@ void ClassParser::createCmplCmdJson()
             json jFile         = json::object();
             jFile["directory"] = new_folder.string();
             std::ostringstream ssCmd;
+            /** c++17 is good, c++20 will cause namespace range issue. */
             ssCmd << "/usr/bin/c++" << incs.str() << " -std=c++17 -c " << cpp;
             jFile["command"] = ssCmd.str();
             jFile["file"]    = cpp;
@@ -218,36 +291,57 @@ void ClassParser::makeFakeArgs(int argc, const char **argv)
 {
     llvm::cl::ParseCommandLineOptions(argc, argv, program_description.c_str());
 
+    // LCOV_EXCL_START
     if (argsModVersion) {
         std::cout << "\n"
                   << program_description << " Ver 0.0.1-" << BUILD_ID << "\n\n";
         exit(0);
     }
+    // LCOV_EXCL_STOP
 
     for (int i = 0; i < argc; ++i) {
         fakeArgv.push_back(argv[i]);
     }
 
-    for (auto in : argsInput) {
-        grab(in, true, false);
+    if (argsInput.size() == 1
+        && fs::path(argsInput.front()).filename() == "compile_commands.json") {
+        std::ifstream file(argsInput.front());
+        if (!file) {
+            std::cerr << "Cannot open file: " << argsInput.front() << std::endl;
+            return;
+        }
+
+        nlohmann::json json;
+        file >> json;
+
+        for (const auto &item : json) {
+            if (item.contains("file")) {
+                // std::cout << item["file"] << std::endl;
+                cpp_files.push_back(item["file"]);
+            }
+        }
+    }
+    else {
+        for (auto in : argsInput) {
+            grab(in, true, false);
+        }
+
+        bool found = detectCmplCmdJson();
+        if (!found) {
+            createCmplCmdJson();
+        }
     }
 
-    bool found = detectCmplCmdJson();
-    if (!found) {
-        createCmplCmdJson();
-    }
-
-    for (auto cpp : cpp_files) {
-        char *c = new char[cpp.length() + 1];
-        std::strcpy(c, cpp.c_str());
-        fakeArgv.push_back(c);
-    }
+    std::transform(cpp_files.begin(), cpp_files.end(),
+                   std::back_inserter(fakeArgv),
+                   [](const std::string &cpp) { return strdup(cpp.c_str()); });
 
     if (argsVerbose) {
         std::cout << "Generated arguments:\n";
-        for (auto &c : fakeArgv) {
-            std::cout << c << "\n";
+        for (auto &v : fakeArgv) {
+            std::cout << v << "\n";
         }
+        std::cout << "\n";
     }
 }
 
@@ -255,10 +349,11 @@ void ClassParser::makeDefaultOutput()
 {
     std::string in = argsInput.front();
     fs::path inputPath(fs::canonical(in));
-    std::cout << "Use input name: " << inputPath << "\n";
     argsOutput = inputPath.filename().string();
     if (argsVerbose) {
-        std::cout << "Use output name: " << argsOutput << "\n";
+        std::cout << "Use input name: " << inputPath << "\n";
+        std::cout << "Use output name: " << argsOutput << "\n"
+                  << "\n";
     }
 }
 
@@ -285,8 +380,7 @@ void ClassParser::parseProject(int argc, const char **argv)
     }
 
     std::unique_ptr<clang::tooling::FrontendActionFactory> actionFactory(
-        new FindNamedClassActionFactory(classes(), argsVerbose, argsExcludeList,
-                                        argsExcludeNsList));
+        new FindNamedClassActionFactory());
     ClangTool Tool(op.getCompilations(), op.getSourcePathList());
     Tool.run(actionFactory.get());
 
@@ -297,7 +391,10 @@ void ClassParser::removeCommonPrefix()
 {
     std::vector<std::string> locations;
     for (auto &clz : classes()) {
-        locations.push_back(clz["location"]);
+        if (!clz["isReduced"]
+            && clz["location"].get<std::string>().length() > 0) {
+            locations.push_back(clz["location"]);
+        }
     }
 
     std::sort(locations.begin(), locations.end());
@@ -316,14 +413,10 @@ void ClassParser::removeCommonPrefix()
         common_prefix = commonPath.parent_path().string();
     }
     else {
-        size_t pos = common_prefix.rfind('/');
+        pos = common_prefix.rfind('/');
         if (pos != std::string::npos) {
             common_prefix = common_prefix.substr(0, pos);
         }
-    }
-    if (argsVerbose) {
-        std::cout << "Remove common prefix '" << common_prefix
-                  << "' from location\n";
     }
 
     for (auto &clz : classes()) {
@@ -332,5 +425,11 @@ void ClassParser::removeCommonPrefix()
             clz["location"] = location.substr(
                 common_prefix.size() + 1);  // +1 to remove the leading '/'
         }
+    }
+
+    if (argsVerbose) {
+        std::cout << "\nRemove common prefix '" << common_prefix
+                  << "' from location\n"
+                  << "\n";
     }
 }

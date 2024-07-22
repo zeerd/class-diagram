@@ -12,6 +12,11 @@ if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Debug)
 endif()
 
+IF(TEST_COVERAGE)
+    set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -coverage")
+    set (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -lgcov")
+ENDIF(TEST_COVERAGE)
+
 execute_process(COMMAND git describe --always
                 WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
                 OUTPUT_VARIABLE BUILD_ID
@@ -43,3 +48,7 @@ install(
     TARGETS class-diagram
     DESTINATION bin
 )
+
+# We do not use this lib, only make sure the test codes compileable
+FILE(GLOB TESTS "tests/examples/*.cpp")
+ADD_LIBRARY(class-diagram-test STATIC ${TESTS})

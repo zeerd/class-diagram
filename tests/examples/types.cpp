@@ -1,3 +1,5 @@
+#include <pthread.h>
+
 enum AEnum { A, B, C };
 
 struct Ast {
@@ -23,4 +25,8 @@ class ConstClass {
 
 class UnionClass {
     AUnion a;
+};
+
+class ThreadClass {
+    pthread_mutex_t a;
 };

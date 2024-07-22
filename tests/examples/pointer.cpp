@@ -5,6 +5,10 @@ public:
 };
 
 class Array {
+    int a[10];
+};
+
+class ClzArray {
     Foo foo[10];
 };
 
@@ -24,5 +28,5 @@ class Reference {
     Foo &foo;
 
 public:
-    Reference(Foo &foo) : foo(foo) {}
+    explicit Reference(Foo &foo) : foo(foo) {}
 };

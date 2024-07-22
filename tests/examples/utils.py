@@ -1,6 +1,11 @@
+import inspect
 import json
 import os
-import inspect
+
+ok = 0
+ng = 0
+total_ok = 0
+total_ng = 0
 
 def read_json(file_path):
     with open(file_path, 'r') as f:
@@ -25,18 +30,57 @@ def _log(frame, expr):
           f" {info.code_context[0].strip()},"
           f" {expr}")
 
+def setup(test_file):
+    global ok, ng
+    print("Testing for " + test_file)
+    ok = 0
+    ng = 0
+
+def teardown(flag = 0):
+    global ok, ng, total_ok, total_ng
+    if flag > 0:
+        ng = ng + 1
+    if ng > 0:
+        print("OK: " + str(ok))
+        print("NG: " + str(ng))
+    total_ok = total_ok + ok
+    total_ng = total_ng + ng
+
+def end():
+    global total_ok, total_ng
+    print("")
+    print("Total OK: " + str(total_ok))
+    print("Total NG: " + str(total_ng))
+    print("")
+
 def expect_eq(a, b):
-    if a != b:
+    global ok, ng
+    if a == b:
+        ok = ok + 1
+    else:
+        ng = ng + 1
         _log(inspect.currentframe().f_back, f"got '{a}' vs '{b}'")
 
 def expect_ne(a, b):
-    if a == b:
+    global ok, ng
+    if a != b:
+        ok = ok + 1
+    else:
+        ng = ng + 1
         _log(inspect.currentframe().f_back, f"got '{a}' vs '{b}'")
 
 def expect_true(expr):
-    if not expr:
+    global ok, ng
+    if expr:
+        ok = ok + 1
+    else:
+        ng = ng + 1
         _log(inspect.currentframe().f_back, f"got '{expr}'")
 
 def expect_false(expr):
-    if expr:
+    global ok, ng
+    if not expr:
+        ok = ok + 1
+    else:
+        ng = ng + 1
         _log(inspect.currentframe().f_back, f"got '{expr}'")

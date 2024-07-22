@@ -1,4 +1,8 @@
-#include "class-diagram.hpp"
+#include "svg-to-html.hpp"
+
+#include <fstream>
+#include <iostream>
+#include <sstream>
 
 static const std::string jsInit = R"(
     var polygons = document.querySelectorAll('polygon');
@@ -124,7 +128,7 @@ static const std::string jsClickBlank = R"(
 )";
 
 static const std::string jsDBClickText = R"(
-    function getSelected() {
+    function getRichSelected() {
         var selection = window.getSelection();
         var range = selection.getRangeAt(0);
         var selectedText = selection.toString();
@@ -150,30 +154,47 @@ static const std::string jsDBClickText = R"(
         return selection.toString();
     }
 
+    function markRect(selectedText) {
+        var found = false;
+        if (selectedText != "") {
+            for (var i = 0; i < rects.length; i++) {
+                var rect = rects[i];
+                if (rect.id === selectedText) {
+                    rect.style.stroke = 'magenta';
+                    rect.style.strokeWidth = '3px';
+                    rect.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    found = true;
+                } else {
+                    rect.style.stroke = '#181818';
+                    rect.style.strokeWidth = '0.5px';
+                }
+            }
+        }
+        return found;
+    }
+
     document.body.addEventListener('dblclick', function(event) {
-        var selectedText = getSelected();
-
-        for (var i = 0; i < rects.length; i++) {
-            var rect = rects[i];
-
-            if (rect.id === selectedText) {
-                rect.style.stroke = '#FF0000';
-                rect.style.strokeWidth = '3px';
-                rect.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            } else {
-                rect.style.stroke = '#181818';
-                rect.style.strokeWidth = '0.5px';
+        var text = getRichSelected();
+        var pos = text.lastIndexOf(' ');
+        var last = text.substring(pos + 1);
+        var parts = last.split("::");
+        for (var i = 0; i < parts.length; i++) {
+            var part = parts.slice(i).join("::");
+            if(markRect(part)) {
+                break;
             }
         }
     });
 )";
 
-void SvgToHtml::save(std::string input, std::string output)
+void SvgToHtml::save(const std::string& input, const std::string& output) const
 {
     std::ifstream svg_file(input);
+    // LCOV_EXCL_START
     if (!svg_file.is_open()) {
         return;
     }
+    // LCOV_EXCL_STOP
 
     std::stringstream svg_content;
     svg_content << svg_file.rdbuf();
@@ -203,6 +224,6 @@ void SvgToHtml::save(std::string input, std::string output)
     html_file.close();
 
     if (verbose) {
-        std::cout << output << " generated\n";
+        std::cout << output << " generated\n\n";
     }
 }
